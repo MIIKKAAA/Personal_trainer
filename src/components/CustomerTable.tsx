@@ -28,6 +28,7 @@ function CustomerTable() {
         }
         // else parse JSON data
         const data = await response.json();
+        // debugging
         console.log("Full API response:", data);
         
         // set customers state with the fetched data: 
