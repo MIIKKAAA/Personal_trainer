@@ -1,8 +1,10 @@
 import {useState, useEffect} from "react";
-
+import { DataGrid } from "@mui/x-data-grid";
+import type { GridColDef } from "@mui/x-data-grid";
 
 function CustomerTable() {
 
+  // Define type for customer
   type Customer = {
     firstname: string;
     lastname: string;
@@ -11,7 +13,13 @@ function CustomerTable() {
     streetaddress: string;
     postcode: string;
     city: string;
+    _links: {
+      self: {
+        href: string;
+      };
+    };
   };
+  
 
   const [customers, setCustomers] = useState<Customer[]>([]);
 
@@ -28,12 +36,16 @@ function CustomerTable() {
         }
         // else parse JSON data
         const data = await response.json();
-        // debugging
+        // debugging, remove later
         console.log("Full API response:", data);
         
-        // set customers state with the fetched data: 
-        // "The response is a JSON object with a _embedded field containing an array of customers"
-        setCustomers(data._embedded?.customers ?? []);
+        // map through customers to add 'id' field, links.self.href as id (should be unique)
+        const customersWithId = (data._embedded?.customers ?? []).map((customer: Customer) => ({
+          ...customer,
+          id: customer._links.self.href
+        }));
+        
+        setCustomers(customersWithId);
         
       // catch any errors, log to console
       } catch (error) {
@@ -43,42 +55,26 @@ function CustomerTable() {
     };
     // Call the fetchCustomers function
     fetchCustomers();
-}, []);
+  }, []);
 
 
+  // Define columns for DataGrid
+  const columns: GridColDef[] = [
+    { field: "firstname", headerName: "Firstname"},
+    { field: "lastname", headerName: "Lastname"},
+    { field: "email", headerName: "Email"},
+    { field: "phone", headerName: "Phone"},
+    { field: "streetaddress", headerName: "Street"},
+    { field: "postcode", headerName: "Postcode"},
+    { field: "city", headerName: "City"}
+  ];
 
-return (
-  <div>
-    <h2>Customer List</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>Firstname</th>
-          <th>Lastname</th>
-          <th>Email</th>
-          <th>Phone</th>
-          <th>Street Address</th>
-          <th>Postcode</th>
-          <th>City</th>
-        </tr>
-      </thead>
-      <tbody>
-        {/* Map through customers and use index as key */}
-        {customers.map((c, index) => (
-          <tr key={index}>
-            <td>{c.firstname}</td>
-            <td>{c.lastname}</td>
-            <td>{c.email}</td>
-            <td>{c.phone}</td>
-            <td>{c.streetaddress}</td>
-            <td>{c.postcode}</td>
-            <td>{c.city}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
-);
+  // Return the DataGrid component with populated customer data
+  return(
+    <div style={{ height: 500, width: '100%', margin: 'auto' }}>
+      <DataGrid rows={customers} columns={columns} />
+    </div>
+  )
 }
 
 export default CustomerTable;

@@ -2,22 +2,31 @@ import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
 import CustomerTable from "./components/CustomerTable";
 import TrainingTable from "./components/TrainingTable";
 
+import { AppBar, Toolbar, Button, Container} from "@mui/material";
+
+
 function App() {
   return (
     <Router>
-      <div>
-        {/* Nav bar */}
-        <nav>
-          <Link to="/customers" style={{ marginRight: "15px" }}>Customers</Link>
-          <Link to="/trainings">Trainings</Link>
-        </nav>
+        {/* Navbar */}
+        <AppBar>
+          <Toolbar>
+            <Button component={Link} to="/customers" color="inherit">
+              Customers
+            </Button>
+            <Button component={Link} to="/trainings" color="inherit">
+              Trainings
+            </Button>
+          </Toolbar>
+        </AppBar>
 
-        {/* Routes */}
+      {/* Layout */}
+      <Container>
         <Routes>
           <Route path="/customers" element={<CustomerTable />} />
           <Route path="/trainings" element={<TrainingTable />} />
         </Routes>
-      </div>
+      </Container>
     </Router>
   );
 }
