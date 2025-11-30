@@ -1,0 +1,7 @@
+.calendar-container {
+    overflow-x: auto;
+    max-width: 100%;
+    max-height: 80vh; /* limits height so the buttons for day/week/month are shown */
+    margin: 0 auto;
+  }
+  

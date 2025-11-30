@@ -214,10 +214,23 @@ function CustomerTable() {
       </Button>
 
       <div style={{ height: 500, width: '100%', margin: 'auto' }}>
-        <DataGrid
-          rows={customers}
-          columns={columns}
-        />
+      <DataGrid
+        rows={customers}
+        columns={columns}
+        showToolbar
+        slotProps={{
+        toolbar: {
+          csvOptions: {
+              // Exclude actions from csv
+              fields: columns
+                .map(c => c.field)
+                .filter(field => field !== "actions"),
+              fileName: "customers",
+              utf8WithBom: true,
+            },
+          },
+        }}
+      />
       </div>
 
       {/* Adding a new customer dialog */}
