@@ -1,11 +1,12 @@
-import {useState, useEffect} from "react";
+import { useState, useEffect } from "react";
 import { DataGrid } from "@mui/x-data-grid";
 import type { GridColDef, GridRenderCellParams } from "@mui/x-data-grid";
 import { Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField } from "@mui/material";
+import { v4 as uuidv4 } from "uuid";
 
 function CustomerTable() {
 
-  // Define type for customer (matches backend, id is generated from _links.self.href)
+  // Define type for customer (matches backend, id is generated locally with uuid)
   type Customer = {
     firstname: string;
     lastname: string;
@@ -21,15 +22,17 @@ function CustomerTable() {
     };
   };
 
-  // For DataGrid, we need an id field (string) for row identification
+  // DataGrid requires id
   type CustomerRow = Customer & { id: string };
-  
+
   const [customers, setCustomers] = useState<CustomerRow[]>([]); // state for customers
   const [openDialog, setOpenDialog] = useState(false); // dialog state
   const [newCustomer, setNewCustomer] = useState<Customer>({ // initial empty customer
-    firstname: "", lastname: "", email: "", phone: "", streetaddress: "", postcode: "", city: "", _links: { self: { href: "" } }
+    firstname: "", lastname: "", email: "", phone: "", streetaddress: "", postcode: "", city: "",
+    _links: { self: { href: "" } }
   });
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null); // state for editing customer
+  const [editingId, setEditingId] = useState<string | null>(null); // keep uuid when editing
 
   // Open and close dialog handlers
   const handleOpen = () => setOpenDialog(true);
@@ -44,8 +47,9 @@ function CustomerTable() {
   const handleAddCustomer = async () => {
     try {
       // Exclude id for backend
-      const {...customerData } = newCustomer;
+      const { ...customerData } = newCustomer;
 
+      // POST request to backend
       const response = await fetch(
         "https://customer-rest-service-frontend-personaltrainer.2.rahtiapp.fi/api/customers",
         {
@@ -54,13 +58,13 @@ function CustomerTable() {
           body: JSON.stringify(customerData)
         }
       );
-  
+
       if (!response.ok) throw new Error("Failed to add new customer");
-  
+
       const createdCustomer: Customer = await response.json();
-  
-      // Add new customer to DataGrid with id for DataGrid only
-      setCustomers([...customers, { ...createdCustomer, id: createdCustomer._links.self.href }]);
+
+      // Add new customer to DataGrid with uuid
+      setCustomers([...customers, { ...createdCustomer, id: uuidv4() }]);
       handleClose(); // Close dialog
 
       // Reset customer form in dialog
@@ -80,18 +84,20 @@ function CustomerTable() {
     }
   };
 
-
   // Delete customer
-  const handleDeleteCustomer = async (href: string) => {
-    const customer = customers.find(c => c._links.self.href === href);
-    if (!customer) return;
-    if (!window.confirm(`Delete customer ${customer.firstname} ${customer.lastname}?`)) return; // Confirm deletion
+  const handleDeleteCustomer = async (id: string) => {
+    const customer = customers.find(c => c.id === id);
+    if (!customer) 
+      return;
+    if (!window.confirm(`Delete customer ${customer.firstname} ${customer.lastname}?`)) 
+      return; // Confirm deletion
     try {
       // Delete request to backend
       const res = await fetch(customer._links.self.href, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete customer");
-      // Remove customer from state
-      setCustomers(customers.filter(c => c._links.self.href !== href));
+
+      // Remove customer from state using UUID
+      setCustomers(customers.filter(c => c.id !== id));
     } catch (err) {
       console.error(err);
     }
@@ -104,13 +110,17 @@ function CustomerTable() {
         // Fetch request to backend
         const response = await fetch("https://customer-rest-service-frontend-personaltrainer.2.rahtiapp.fi/api/customers");
         if (!response.ok) throw new Error("Failed to fetch customers");
-        // Parse response and map to CustomerRow with id
+
+        // Parse response and map to CustomerRow with uuid id
         const data = await response.json();
-        // Map customers to include id field for DataGrid
-        const customersWithId: CustomerRow[] = (data._embedded?.customers ?? []).map((c: Customer) => ({
-          ...c,
-          id: c._links.self.href, // Add id for DataGrid only
-        }));
+
+        // Map customers to include uuid field for DataGrid
+        const customersWithId: CustomerRow[] =
+          (data._embedded?.customers ?? []).map((c: Customer) => ({
+            ...c,
+            id: uuidv4() // Generate UUID for each row
+          }));
+
         setCustomers(customersWithId);
       } catch (err) {
         console.error("Error fetching customers:", err);
@@ -122,17 +132,14 @@ function CustomerTable() {
 
   // Define columns for DataGrid
   const columns: GridColDef[] = [
-    { field: "firstname", headerName: "Firstname"},
-    { field: "lastname", headerName: "Lastname"},
-    { field: "email", headerName: "Email"},
-    { field: "phone", headerName: "Phone"},
-    { field: "streetaddress", headerName: "Street"},
-    { field: "postcode", headerName: "Postcode"},
-    { field: "city", headerName: "City"},
-    {
-      field: "actions",
-      headerName: "Actions",
-      width: 200,
+    { field: "firstname", headerName: "Firstname" },
+    { field: "lastname", headerName: "Lastname" },
+    { field: "email", headerName: "Email" },
+    { field: "phone", headerName: "Phone" },
+    { field: "streetaddress", headerName: "Street" },
+    { field: "postcode", headerName: "Postcode" },
+    { field: "city", headerName: "City" },
+    { field: "actions", headerName: "Actions", width: 200,
       renderCell: (params: GridRenderCellParams) => ( // Render Edit and Delete buttons
         <>
           <Button
@@ -141,7 +148,7 @@ function CustomerTable() {
             Edit
           </Button>
           <Button
-            onClick={() => handleDeleteCustomer(params.row._links.self.href)} // Delete button, links.self.href as id
+            onClick={() => handleDeleteCustomer(params.row.id)} // Delete button uses UUID
           >
             Delete
           </Button>
@@ -150,12 +157,12 @@ function CustomerTable() {
     }
   ];
 
-// Edit button click
-const handleEditClick = (customer: CustomerRow) => {
-  // Copy customer without DataGrid-only id when editing
-  const { id, ...backendCustomer } = customer; // Exclude id
-  setEditingCustomer({ ...backendCustomer }); // Set editing customer
-};
+  // Edit button click
+  const handleEditClick = (customer: CustomerRow) => {
+    const { id, ...backendCustomer } = customer; // Exclude DataGrid id
+    setEditingCustomer({ ...backendCustomer }); // Set editing customer
+    setEditingId(id); // Store uuid
+  };
 
   // Handle changes in edit dialog
   const handleEditChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -165,10 +172,9 @@ const handleEditClick = (customer: CustomerRow) => {
 
   // Handle saving edited customer
   const handleSaveEdit = async () => {
-    if (!editingCustomer) return;
+    if (!editingCustomer || !editingId) return;
     try {
-      // Exclude id for backend
-      const {...customerData } = editingCustomer;
+      const { ...customerData } = editingCustomer; // Exclude id for backend
 
       // PUT request to update customer
       const res = await fetch(editingCustomer._links.self.href, {
@@ -176,21 +182,24 @@ const handleEditClick = (customer: CustomerRow) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(customerData),
       });
+
       // Check for errors
       if (!res.ok) {
         const text = await res.text();
         throw new Error(`Failed to update customer: ${text}`);
       }
-      // Update customer in state
+
+      // Update customer in state using UUID
       setCustomers(prev =>
         prev.map(c =>
-          c._links.self.href === editingCustomer._links.self.href
-            ? { ...editingCustomer, id: editingCustomer._links.self.href }
+          c.id === editingId
+            ? { ...editingCustomer, id: editingId }
             : c
         )
       );
 
       setEditingCustomer(null); // close dialog
+      setEditingId(null);
     } catch (err) {
       console.error(err);
       alert("Save failed.");
@@ -198,15 +207,16 @@ const handleEditClick = (customer: CustomerRow) => {
   };
 
   // Return the DataGrid component with populated customer data
-  return(
+  return (
     <div>
       <Button onClick={handleOpen} style={{ marginBottom: "10px" }} >
         Add New Customer
       </Button>
-    
+
       <div style={{ height: 500, width: '100%', margin: 'auto' }}>
-        <DataGrid rows={customers} columns={columns} 
-          getRowId={(row) => row._links.self.href} // id is links.self.href for DataGrid
+        <DataGrid
+          rows={customers}
+          columns={columns}
         />
       </div>
 
@@ -214,126 +224,35 @@ const handleEditClick = (customer: CustomerRow) => {
       <Dialog open={openDialog} onClose={handleClose}>
         <DialogTitle>Add New Customer</DialogTitle>
         <DialogContent>
-          <TextField
-            label="Firstname"
-            name="firstname"
-            value={newCustomer.firstname}
-            onChange={handleChange}
-            fullWidth
-          />
-          <TextField
-            label="Lastname"
-            name="lastname"
-            value={newCustomer.lastname}
-            onChange={handleChange}
-            fullWidth
-          />
-          <TextField
-            label="Email"
-            name="email"
-            value={newCustomer.email}
-            onChange={handleChange}
-            fullWidth
-          />
-          <TextField
-            label="Phone"
-            name="phone"
-            value={newCustomer.phone}
-            onChange={handleChange}
-            fullWidth
-          />
-          <TextField
-            label="Street"
-            name="streetaddress"
-            value={newCustomer.streetaddress}
-            onChange={handleChange}
-            fullWidth
-          />
-          <TextField
-            margin="dense"
-            label="Postcode"
-            name="postcode"
-            value={newCustomer.postcode}
-            fullWidth
-          />
-          <TextField
-            label="City"
-            name="city"
-            value={newCustomer.city}
-            onChange={handleChange}
-            fullWidth
-          />
+          <TextField label="Firstname" name="firstname" value={newCustomer.firstname} onChange={handleChange} fullWidth />
+          <TextField label="Lastname" name="lastname" value={newCustomer.lastname} onChange={handleChange} fullWidth />
+          <TextField label="Email" name="email" value={newCustomer.email} onChange={handleChange} fullWidth />
+          <TextField label="Phone" name="phone" value={newCustomer.phone} onChange={handleChange} fullWidth />
+          <TextField label="Street" name="streetaddress" value={newCustomer.streetaddress} onChange={handleChange} fullWidth />
+          <TextField margin="dense" label="Postcode" name="postcode" value={newCustomer.postcode} fullWidth />
+          <TextField label="City" name="city" value={newCustomer.city} onChange={handleChange} fullWidth />
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClose}>Cancel</Button>
-          <Button onClick={handleAddCustomer} color="primary">
-            Add
-          </Button>
+          <Button onClick={handleAddCustomer} color="primary">Add</Button>
         </DialogActions>
       </Dialog>
 
       {/* Edit Customer Dialog */}
-      <Dialog
-        open={!!editingCustomer}
-        onClose={() => setEditingCustomer(null)}
-      >
+      <Dialog open={!!editingCustomer} onClose={() => { setEditingCustomer(null); setEditingId(null); }}>
         <DialogTitle>Edit Customer</DialogTitle>
         <DialogContent>
-          <TextField
-            label="Firstname"
-            name="firstname"
-            value={editingCustomer ? editingCustomer.firstname : ""}
-            onChange={handleEditChange}
-            fullWidth
-          />
-          <TextField
-            label="Lastname"
-            name="lastname"
-            value={editingCustomer ? editingCustomer.lastname : ""}
-            onChange={handleEditChange}
-            fullWidth
-          />
-          <TextField
-            label="Email"
-            name="email"
-            value={editingCustomer ? editingCustomer.email : ""}
-            onChange={handleEditChange}
-            fullWidth
-          />
-          <TextField
-            label="Phone"
-            name="phone"
-            value={editingCustomer ? editingCustomer.phone : ""}
-            onChange={handleEditChange}
-            fullWidth
-          />
-          <TextField
-            label="Street"
-            name="streetaddress"
-            value={editingCustomer ? editingCustomer.streetaddress : ""}
-            onChange={handleEditChange}
-            fullWidth
-          />
-          <TextField
-            label="Postcode"
-            name="postcode"
-            value={editingCustomer ? editingCustomer.postcode : ""}
-            onChange={handleEditChange}
-            fullWidth
-          />
-          <TextField
-            label="City"
-            name="city"
-            value={editingCustomer ? editingCustomer.city : ""}
-            onChange={handleEditChange}
-            fullWidth
-          />
+          <TextField label="Firstname" name="firstname" value={editingCustomer?.firstname || ""} onChange={handleEditChange} fullWidth />
+          <TextField label="Lastname" name="lastname" value={editingCustomer?.lastname || ""} onChange={handleEditChange} fullWidth />
+          <TextField label="Email" name="email" value={editingCustomer?.email || ""} onChange={handleEditChange} fullWidth />
+          <TextField label="Phone" name="phone" value={editingCustomer?.phone || ""} onChange={handleEditChange} fullWidth />
+          <TextField label="Street" name="streetaddress" value={editingCustomer?.streetaddress || ""} onChange={handleEditChange} fullWidth />
+          <TextField label="Postcode" name="postcode" value={editingCustomer?.postcode || ""} onChange={handleEditChange} fullWidth />
+          <TextField label="City" name="city" value={editingCustomer?.city || ""} onChange={handleEditChange} fullWidth />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditingCustomer(null)}>Cancel</Button>
-          <Button onClick={handleSaveEdit} color="primary">
-            Save
-          </Button>
+          <Button onClick={() => { setEditingCustomer(null); setEditingId(null); }}>Cancel</Button>
+          <Button onClick={handleSaveEdit} color="primary">Save</Button>
         </DialogActions>
       </Dialog>
     </div>

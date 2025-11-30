@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import dayjs from "dayjs";
-import { DataGrid} from "@mui/x-data-grid";
-import type { GridColDef} from "@mui/x-data-grid";
+import { DataGrid } from "@mui/x-data-grid";
+import type { GridColDef } from "@mui/x-data-grid";
 import { Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem } from "@mui/material";
+import { v4 as uuidv4 } from "uuid";
 
 function TrainingTable() {
 
@@ -22,7 +23,7 @@ function TrainingTable() {
   const [trainings, setTrainings] = useState<TrainingRow[]>([]);
   const [customers, setCustomers] = useState<any[]>([]); // For selecting customer when adding/editing
 
-  const [openDialog, setOpenDialog] = useState(false);
+  const [openDialog, setOpenDialog] = useState(false); // Dialog open state
   const [newTraining, setNewTraining] = useState<Training>({
     activity: "",
     date: "",
@@ -30,7 +31,8 @@ function TrainingTable() {
     customer: undefined,
     _links: { self: { href: "" } }
   });
-  const [editingTraining, setEditingTraining] = useState<Training | null>(null);
+  const [editingTraining, setEditingTraining] = useState<Training | null>(null); // Editing existing training
+  const [editingId, setEditingId] = useState<string | null>(null); // Editing training id
 
   // Fetch trainings and customers
   useEffect(() => {
@@ -38,7 +40,7 @@ function TrainingTable() {
       try {
         // Fetch trainings from the REST API
         const resTrainings = await fetch("https://customer-rest-service-frontend-personaltrainer.2.rahtiapp.fi/api/trainings");
-        const dataTrainings = await resTrainings.json();
+        const dataTrainings = await resTrainings.json(); // parse JSON
 
         // Map through trainings and fetch the linked customer for each
         const trainingsWithCustomer: TrainingRow[] = await Promise.all(
@@ -57,7 +59,7 @@ function TrainingTable() {
             }
             // Return training with added id and customerName
             return {
-              id: t._links.self.href, // unique id required by DataGrid
+              id: uuidv4(), // Generate unique id with uuid
               activity: t.activity,
               date: t.date, 
               duration: t.duration,   
@@ -85,6 +87,7 @@ function TrainingTable() {
   // Open and close dialog handlers
   const handleOpen = () => setOpenDialog(true);
   const handleClose = () => {
+    // Reset states on close
     setOpenDialog(false);
     setNewTraining({
       activity: "",
@@ -94,11 +97,12 @@ function TrainingTable() {
       _links: { self: { href: "" } }
     });
     setEditingTraining(null);
+    setEditingId(null);
   };
 
   // Handle input changes for new training
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setNewTraining({ ...newTraining, [e.target.name]: e.target.value }); //
+    setNewTraining({ ...newTraining, [e.target.name]: e.target.value });
   };
 
   // Handle changes in edit dialog
@@ -120,6 +124,7 @@ function TrainingTable() {
   // Adding new training
   const handleAddTraining = async () => {
     try {
+      // Data for POST request
       const trainingData: any = {
         activity: newTraining.activity,
         date: newTraining.date,
@@ -144,7 +149,7 @@ function TrainingTable() {
         ...trainings,
         {
           ...createdTraining,
-          id: createdTraining._links.self.href,
+          id: uuidv4(), // Generate unique id
           customerName: newTraining.customer ? `${newTraining.customer.firstname} ${newTraining.customer.lastname}` : "No customer"
         }
       ]);
@@ -160,14 +165,16 @@ function TrainingTable() {
   const handleEditClick = (training: TrainingRow) => {
     const { id, customerName, ...backendTraining } = training;
     setEditingTraining({ ...backendTraining });
+    setEditingId(id); // store id for later use
     setOpenDialog(true);
   };
 
   // Handle saving edited training
   const handleSaveEdit = async () => {
-    if (!editingTraining) return; // check if editingTraining is set
+    if (!editingTraining || !editingId) 
+      return;
     try {
-      // Prepare data for PUT request
+      // Data for PUT request
       const trainingData: any = {
         activity: editingTraining.activity,
         date: editingTraining.date,
@@ -185,13 +192,29 @@ function TrainingTable() {
       if (!res.ok) throw new Error("Failed to update training");
 
       // Update training in state
-      setTrainings(prev =>
-        prev.map(t =>
-          t._links.self.href === editingTraining._links.self.href
-            ? { ...editingTraining, id: editingTraining._links.self.href, customerName: editingTraining.customer ? `${editingTraining.customer.firstname} ${editingTraining.customer.lastname}` : "No customer" }
-            : t
-        )
-      );
+      setTrainings(prev => {
+
+        // Make a copy of all trainings
+        const updatedTrainings = prev.map(t => {
+      
+          // If this is not the training we are editing, return it as is
+          if (t.id !== editingId) {
+            return t;
+          }
+      
+          // If it is the training we are editing, return the updated version
+          return {
+            ...editingTraining,
+            id: editingId,
+            customerName: editingTraining.customer
+              ? editingTraining.customer.firstname + " " + editingTraining.customer.lastname
+              : "No customer"
+          };
+        });
+      
+        // Set state with the new updated array
+        return updatedTrainings;
+      });
 
       handleClose();
     } catch (err) {
@@ -201,43 +224,45 @@ function TrainingTable() {
   };
 
   // Delete training
-  const handleDeleteTraining = async (href: string) => {
-    if (!window.confirm("Delete this training?")) return; // confirmation
+  const handleDeleteTraining = async (id: string) => {
+    const training = trainings.find(t => t.id === id);
+    if (!training) 
+      return;
+    if (!window.confirm("Delete this training?")) 
+      return; // confirmation
     try {
       // Send DELETE request
-      const res = await fetch(href, { method: "DELETE" });
+      const res = await fetch(training._links.self.href, { method: "DELETE" }); // We still use links to get correct URL
       if (!res.ok) throw new Error("Failed to delete training");
       // Remove training from state
-      setTrainings(trainings.filter(t => t._links.self.href !== href));
+      setTrainings(trainings.filter(t => t.id !== id));
     } catch (err) {
       console.error(err);
     }
   };
 
-// Define columns for DataGrid
-const columns: GridColDef[] = [
-  { field: "activity", headerName: "Activity", flex: 2, minWidth: 150 },
-
-  {
-    field: "date", headerName: "Date", flex: 1, minWidth: 150,
-    renderCell: (params: any) =>
-      params.row?.date ? dayjs(params.row.date).format("DD.MM.YYYY HH:mm") : ""
-  },
-  { field: "duration", headerName: "Duration (mins)", flex: 1, minWidth: 150 },
-  { field: "customerName", headerName: "Customer", flex: 1, minWidth: 150 },
-  {
-    field: "actions", headerName: "Actions", flex: 1, minWidth: 200,
-    renderCell: (params: any) => (
-      <>
-        <Button onClick={() => handleEditClick(params.row)}>Edit</Button>
-        <Button onClick={() => handleDeleteTraining(params.row._links.self.href)}>
-          Delete
-        </Button>
-      </>
-    )
-  }
-];
-
+  // Define columns for DataGrid
+  const columns: GridColDef[] = [
+    { field: "activity", headerName: "Activity", flex: 2, minWidth: 150 },
+    {
+      field: "date", headerName: "Date", flex: 1, minWidth: 150,
+      renderCell: (params: any) =>
+        params.row?.date ? dayjs(params.row.date).format("DD.MM.YYYY HH:mm") : ""
+    },
+    { field: "duration", headerName: "Duration (mins)", flex: 1, minWidth: 150 },
+    { field: "customerName", headerName: "Customer", flex: 1, minWidth: 150 },
+    {
+      field: "actions", headerName: "Actions", flex: 1, minWidth: 200,
+      renderCell: (params: any) => (
+        <>
+          <Button onClick={() => handleEditClick(params.row)}>Edit</Button>
+          <Button onClick={() => handleDeleteTraining(params.row.id)}>
+            Delete
+          </Button>
+        </>
+      )
+    }
+  ];
 
   // Return DataGrid with populated training data
   return (
@@ -254,37 +279,22 @@ const columns: GridColDef[] = [
       <Dialog open={openDialog} onClose={handleClose}>
         <DialogTitle>{editingTraining ? "Edit Training" : "Add New Training"}</DialogTitle>
         <DialogContent>
-          <TextField
-            label="Activity"
-            name="activity"
+          <TextField label="Activity" name="activity"
             value={editingTraining?.activity || newTraining.activity}
-            onChange={editingTraining ? handleEditChange : handleChange}
-            fullWidth
-          />
-          <TextField
-            label="Date"
-            name="date"
-            type="datetime-local"
+            onChange={editingTraining ? handleEditChange : handleChange} fullWidth />
+
+          <TextField label="Date" name="date" type="datetime-local"
             value={editingTraining
               ? dayjs(editingTraining.date).format("YYYY-MM-DDTHH:mm")
-              : newTraining.date
-                ? dayjs(newTraining.date).format("YYYY-MM-DDTHH:mm")
-                : ""}
-            onChange={editingTraining ? handleEditChange : handleChange}
-            fullWidth
-          />
+              : newTraining.date ? dayjs(newTraining.date).format("YYYY-MM-DDTHH:mm") : ""}
+            onChange={editingTraining ? handleEditChange : handleChange} fullWidth />
+
+          <TextField label="Duration (mins)" name="duration" type="number"
+            value={editingTraining?.duration || newTraining.duration}
+            onChange={editingTraining ? handleEditChange : handleChange} fullWidth />
 
           <TextField
-            label="Duration (mins)"
-            name="duration"
-            type="number"
-            value={editingTraining?.duration || newTraining.duration}
-            onChange={editingTraining ? handleEditChange : handleChange}
-            fullWidth
-          />
-          <TextField
-            select
-            label="Customer"
+            select label="Customer"
             value={editingTraining?.customer?._links.self.href || newTraining.customer?._links.self.href || ""}
             onChange={(e) => handleCustomerChange(e.target.value)}
             fullWidth
