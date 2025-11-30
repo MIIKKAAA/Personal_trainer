@@ -163,7 +163,7 @@ function TrainingTable() {
 
   // Edit button click
   const handleEditClick = (training: TrainingRow) => {
-    const { id, customerName, ...backendTraining } = training;
+    const { id, customerName, ...backendTraining } = training; // exclude id and customerName
     setEditingTraining({ ...backendTraining });
     setEditingId(id); // store id for later use
     setOpenDialog(true);

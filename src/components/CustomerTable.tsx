@@ -87,10 +87,10 @@ function CustomerTable() {
   // Delete customer
   const handleDeleteCustomer = async (id: string) => {
     const customer = customers.find(c => c.id === id);
-    if (!customer) 
-      return;
-    if (!window.confirm(`Delete customer ${customer.firstname} ${customer.lastname}?`)) 
-      return; // Confirm deletion
+    if (!customer) // if customer not found
+      return; // exit
+    if (!window.confirm(`Delete customer ${customer.firstname} ${customer.lastname}?`)) // if not confirmed
+      return; // exit
     try {
       // Delete request to backend
       const res = await fetch(customer._links.self.href, { method: "DELETE" });
@@ -103,7 +103,7 @@ function CustomerTable() {
     }
   };
 
-  // Fetch customers on component mount
+  // Fetch customers when component after component is rendered
   useEffect(() => {
     const fetchCustomers = async () => {
       try {
@@ -116,7 +116,7 @@ function CustomerTable() {
 
         // Map customers to include uuid field for DataGrid
         const customersWithId: CustomerRow[] =
-          (data._embedded?.customers ?? []).map((c: Customer) => ({
+          (data._embedded?.customers ?? []).map((c: Customer) => ({ // if no customers, return empty array, else map
             ...c,
             id: uuidv4() // Generate UUID for each row
           }));
@@ -148,7 +148,7 @@ function CustomerTable() {
             Edit
           </Button>
           <Button
-            onClick={() => handleDeleteCustomer(params.row.id)} // Delete button uses UUID
+            onClick={() => handleDeleteCustomer(params.row.id)} // Delete button, uses uuid
           >
             Delete
           </Button>
@@ -160,7 +160,7 @@ function CustomerTable() {
   // Edit button click
   const handleEditClick = (customer: CustomerRow) => {
     const { id, ...backendCustomer } = customer; // Exclude DataGrid id
-    setEditingCustomer({ ...backendCustomer }); // Set editing customer
+    setEditingCustomer({ ...backendCustomer }); // Set editing customer, id exlucded
     setEditingId(id); // Store uuid
   };
 
@@ -174,7 +174,8 @@ function CustomerTable() {
   const handleSaveEdit = async () => {
     if (!editingCustomer || !editingId) return;
     try {
-      const { ...customerData } = editingCustomer; // Exclude id for backend
+      // Here we use editingCustomer which excludes DataGrid id, so that is not sent to API
+      const { ...customerData } = editingCustomer; // Prepare data for backend
 
       // PUT request to update customer
       const res = await fetch(editingCustomer._links.self.href, {
@@ -189,7 +190,7 @@ function CustomerTable() {
         throw new Error(`Failed to update customer: ${text}`);
       }
 
-      // Update customer in state using UUID
+      // Update customer in state using uuid
       setCustomers(prev =>
         prev.map(c =>
           c.id === editingId
