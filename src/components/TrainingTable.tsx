@@ -129,7 +129,7 @@ function TrainingTable() {
         activity: newTraining.activity,
         date: newTraining.date,
         duration: newTraining.duration,
-        customer: newTraining.customer?._links.self.href
+        customer: newTraining.customer?._links.self.href // customer url from API 
       };
       // Post to REST API
       const res = await fetch("https://customer-rest-service-frontend-personaltrainer.2.rahtiapp.fi/api/trainings", {

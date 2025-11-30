@@ -243,7 +243,7 @@ function CustomerTable() {
           <TextField label="Email" name="email" value={newCustomer.email} onChange={handleChange} fullWidth />
           <TextField label="Phone" name="phone" value={newCustomer.phone} onChange={handleChange} fullWidth />
           <TextField label="Street" name="streetaddress" value={newCustomer.streetaddress} onChange={handleChange} fullWidth />
-          <TextField margin="dense" label="Postcode" name="postcode" value={newCustomer.postcode} fullWidth />
+          <TextField margin="dense" label="Postcode" name="postcode" value={newCustomer.postcode} onChange={handleChange} fullWidth />
           <TextField label="City" name="city" value={newCustomer.city} onChange={handleChange} fullWidth />
         </DialogContent>
         <DialogActions>
